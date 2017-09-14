@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -21,7 +23,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+
+	sigint := make(chan os.Signal)
+	signal.Notify(sigint, syscall.SIGINT)
+	go func() {
+		<-sigint
+		fmt.Println("Closing")
+		conn.Close()
+		os.Exit(0)
+	}()
 
 	publicAddr := []byte{}
 	buf := make([]byte, 100)
