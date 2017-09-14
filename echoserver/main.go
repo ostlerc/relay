@@ -21,6 +21,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer conn.Close()
 
 	publicAddr := []byte{}
 	buf := make([]byte, 100)
