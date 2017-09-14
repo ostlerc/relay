@@ -108,6 +108,7 @@ func (r *relay) Serve() error {
 }
 
 func main() {
+	flag.Parse()
 	s := &Server{
 		host: *host,
 		port: *port,

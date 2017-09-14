@@ -15,6 +15,7 @@ var (
 )
 
 func main() {
+	flag.Parse()
 	addr := fmt.Sprintf("%v:%v", *host, *port)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
