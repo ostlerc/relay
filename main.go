@@ -106,6 +106,7 @@ func (r *relay) Serve() error {
 			if err != nil {
 				fmt.Println("Closing relay client and server connection", conn.RemoteAddr(), err)
 				r.listener.Close()
+				r.done = true
 			}
 			fmt.Println("Closing relay client connection", conn.RemoteAddr())
 			conn.Close()
