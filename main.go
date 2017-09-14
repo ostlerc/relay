@@ -34,37 +34,39 @@ func (s *Server) Serve() error {
 			panic(err)
 		}
 
-		go func(conn net.Conn) {
-			fmt.Println("New relay server connection", conn.RemoteAddr())
-			p := s.NextPort()
-			addr := fmt.Sprintf("%v:%v", s.host, p)
-			l, err := net.Listen("tcp", addr) // TODO: some resiliency around finding an address to connect to
-			if err != nil {
-				fmt.Println("failed to listen to addr", addr, err)
-				return
-			}
-
-			_, err = conn.Write([]byte(addr + "\n"))
-			if err != nil {
-				fmt.Println("Failed to send relay host", err)
-				_ = conn.Close()
-			}
-
-			r := &relay{
-				host:     s.host,
-				port:     p,
-				listener: l,
-				client:   conn,
-			}
-			go func() {
-				err = r.Serve()
-				if err != nil {
-					fmt.Printf("serve failed%v\n\n%#v\n", err, r)
-				}
-				fmt.Println("Finished client serving")
-			}()
-		}(conn)
+		go s.Accept(conn)
 	}
+}
+
+func (s *Server) Accept(conn net.Conn) {
+	fmt.Println("New relay server connection", conn.RemoteAddr())
+	p := s.NextPort()
+	addr := fmt.Sprintf("%v:%v", s.host, p)
+	l, err := net.Listen("tcp", addr) // TODO: some resiliency around finding an address to connect to
+	if err != nil {
+		fmt.Println("failed to listen to addr", addr, err)
+		return
+	}
+
+	_, err = conn.Write([]byte(addr + "\n"))
+	if err != nil {
+		fmt.Println("Failed to send relay host", err)
+		_ = conn.Close()
+	}
+
+	r := &relay{
+		host:     s.host,
+		port:     p,
+		listener: l,
+		client:   conn,
+	}
+	go func() {
+		err = r.Serve()
+		if err != nil {
+			fmt.Printf("serve failed%v\n\n%#v\n", err, r)
+		}
+		fmt.Println("Finished client serving")
+	}()
 }
 
 func (s *Server) NextPort() int {
