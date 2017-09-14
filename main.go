@@ -86,6 +86,7 @@ type relay struct {
 
 	listener net.Listener
 	client   net.Conn
+	done     bool
 }
 
 func (r *relay) Serve() error {
@@ -93,14 +94,18 @@ func (r *relay) Serve() error {
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
-			panic(err)
+			if r.done {
+				return nil
+			}
+			return err
 		}
 
 		go func(conn net.Conn) {
 			fmt.Println("New relay client connection", conn.RemoteAddr())
 			_, err = io.Copy(r.client, conn)
 			if err != nil {
-				fmt.Println("Closing relay client connection", conn.RemoteAddr(), err)
+				fmt.Println("Closing relay client and server connection", conn.RemoteAddr(), err)
+				r.listener.Close()
 			}
 			fmt.Println("Closing relay client connection", conn.RemoteAddr())
 			conn.Close()
