@@ -28,7 +28,7 @@ func main() {
 	signal.Notify(sigint, syscall.SIGINT)
 	go func() {
 		<-sigint
-		fmt.Println("Closing")
+		//fmt.Println("Closing")
 		conn.Close()
 		os.Exit(0)
 	}()
@@ -55,9 +55,9 @@ outer:
 		}
 	}
 
-	fmt.Printf("established relay address: %s\n", publicAddr)
+	//fmt.Printf("established relay address: %s\n", publicAddr)
 
-	_, err = io.Copy(os.Stdout, conn)
+	_, err = io.Copy(conn, conn)
 	if err != nil {
 		panic(err)
 	}

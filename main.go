@@ -100,18 +100,21 @@ func (r *relay) Serve() error {
 			return err
 		}
 
-		go func(conn net.Conn) {
-			fmt.Println("New relay client connection", conn.RemoteAddr())
-			_, err = io.Copy(r.client, conn)
-			if err != nil {
-				fmt.Println("Closing relay client and server connection", conn.RemoteAddr(), err)
-				r.listener.Close()
-				r.done = true
-			}
-			fmt.Println("Closing relay client connection", conn.RemoteAddr())
-			conn.Close()
-		}(conn)
+		go r.copyIo(conn, r.client, conn)
+		go r.copyIo(conn, conn, r.client)
 	}
+}
+
+func (r *relay) copyIo(conn net.Conn, w io.Writer, reader io.Reader) {
+	fmt.Println("New relay client connection", conn.RemoteAddr())
+	_, err := io.Copy(w, reader)
+	if err != nil {
+		fmt.Println("Closing relay client and server connection", conn.RemoteAddr(), err)
+		r.listener.Close()
+		r.done = true
+	}
+	fmt.Println("Closing relay client connection", conn.RemoteAddr())
+	conn.Close()
 }
 
 func main() {
