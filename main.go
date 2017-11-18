@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 )
 
 var (
@@ -14,15 +13,11 @@ var (
 )
 
 type Server struct {
-	host string
-	port int
-
-	portmu         sync.Mutex
-	relayPortStart int
+	addr string
 }
 
 func (s *Server) Serve() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", s.host, s.port))
+	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
 	}
@@ -39,79 +34,71 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) Accept(conn net.Conn) {
-	fmt.Println("New relay server connection", conn.RemoteAddr())
-	p := s.NextPort()
-	addr := fmt.Sprintf("%v:%v", s.host, p)
-	l, err := net.Listen("tcp", addr) // TODO: some resiliency around finding an address to connect to
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
-		fmt.Println("failed to listen to addr", addr, err)
+		fmt.Println("failed to create relay connection", err)
 		return
 	}
 
-	_, err = conn.Write([]byte(addr + "\n"))
-	if err != nil {
-		fmt.Println("Failed to send relay host", err)
-		_ = conn.Close()
-	}
+	fmt.Println("New relay server connection", l.Addr())
 
 	r := &relay{
-		host:     s.host,
-		port:     p,
-		listener: l,
-		client:   conn,
+		relayClient: l,
+		conn:        conn,
 	}
 	go func() {
 		err = r.Serve()
 		if err != nil {
-			fmt.Printf("serve failed%v\n\n%#v\n", err, r)
+			fmt.Printf("serve failed%v\n", err)
 		}
 		fmt.Println("Finished client serving")
 	}()
 }
 
-func (s *Server) NextPort() int {
-	s.portmu.Lock()
-	if s.relayPortStart == 0 {
-		s.relayPortStart = *port
-	}
-
-	s.relayPortStart++
-	defer s.portmu.Unlock()
-	return s.relayPortStart
-}
-
 type relay struct {
-	host string
-	port int
-
-	listener net.Listener
-	client   net.Conn
-	done     bool
+	relayClient net.Listener
+	conn        net.Conn
 }
 
 func (r *relay) Serve() error {
-	defer r.listener.Close()
+	defer r.relayClient.Close()
+	defer r.conn.Close()
+	defer func() {
+		fmt.Println("Closed relay client server")
+	}()
 	for {
-		conn, err := r.listener.Accept()
+		conn, err := r.relayClient.Accept()
 		if err != nil {
-			if r.done {
-				return nil
-			}
 			return err
 		}
 
-		go r.copyIo(conn, r.client, conn)
-		go r.copyIo(conn, conn, r.client)
+		listener, err := net.Listen("tcp", ":0")
+		if err != nil {
+			return err
+		}
+
+		// tell the relay client about the clients relay port
+		_, err = r.conn.Write([]byte(listener.Addr().String() + "\n"))
+		if err != nil {
+			return err
+		}
+		clientConn, err := listener.Accept()
+		if err != nil {
+			return err
+		}
+		defer listener.Close()
+		fmt.Println("New relay client connection", clientConn.RemoteAddr())
+
+		go r.copyIo(conn, clientConn, conn)
+		go r.copyIo(conn, conn, clientConn)
 	}
 }
 
 func (r *relay) copyIo(conn net.Conn, w io.Writer, reader io.Reader) {
-	fmt.Println("New relay client connection", conn.RemoteAddr())
 	_, err := io.Copy(w, reader)
 	if err != nil {
 		fmt.Println("Closing relay client and server connection", conn.RemoteAddr(), err)
-		r.listener.Close()
-		r.done = true
+		r.relayClient.Close()
 	}
 	fmt.Println("Closing relay client connection", conn.RemoteAddr())
 	conn.Close()
@@ -119,12 +106,8 @@ func (r *relay) copyIo(conn net.Conn, w io.Writer, reader io.Reader) {
 
 func main() {
 	flag.Parse()
-	s := &Server{
-		host: *host,
-		port: *port,
-	}
-	err := s.Serve()
-	if err != nil {
+	s := &Server{addr: fmt.Sprintf("%s:%d", *host, *port)}
+	if err := s.Serve(); err != nil {
 		panic(err)
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -8,18 +9,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 var (
-	host = flag.String("h", "localhost", "host")
-	port = flag.Int("p", 8080, "port")
+	relay = flag.String("r", ":8080", "relay address")
 )
 
 func main() {
 	flag.Parse()
-	addr := fmt.Sprintf("%v:%v", *host, *port)
-	conn, err := net.Dial("tcp", addr)
+	conn, err := net.Dial("tcp", *relay)
 	if err != nil {
 		panic(err)
 	}
@@ -28,37 +26,33 @@ func main() {
 	signal.Notify(sigint, syscall.SIGINT)
 	go func() {
 		<-sigint
-		//fmt.Println("Closing")
 		conn.Close()
 		os.Exit(0)
 	}()
 
-	publicAddr := []byte{}
-	buf := make([]byte, 100)
-
-outer:
+	r := bufio.NewReader(conn)
 	for {
-		n, err := conn.Read(buf)
+		dat, err := r.ReadBytes('\n')
+		clientAddr := string(dat[:len(dat)-1])
+
+		client, err := net.Dial("tcp", clientAddr)
 		if err != nil {
 			panic(err)
 		}
-		if n > 0 {
-			for i := 0; i < n; i++ {
-				if buf[i] == '\n' {
-					publicAddr = append(publicAddr, buf[:i]...)
-					break outer
-				}
-			}
-			publicAddr = append(publicAddr, buf...)
-		} else {
-			time.Sleep(time.Second / 2)
-		}
+
+		go echo(client)
 	}
+}
 
-	//fmt.Printf("established relay address: %s\n", publicAddr)
-
-	_, err = io.Copy(conn, conn)
+func echo(conn net.Conn) error {
+	_, err := io.Copy(conn, conn)
 	if err != nil {
-		panic(err)
+		fmt.Println("Err echoing", err)
 	}
+
+	closeErr := conn.Close()
+	if closeErr != nil {
+		fmt.Println("Err closing", closeErr)
+	}
+	return err
 }
