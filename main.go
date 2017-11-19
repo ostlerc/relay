@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	host = flag.String("h", "localhost", "host")
-	port = flag.Int("p", 8080, "port")
+	addr = flag.String("a", ":8080", "relay server address")
 )
 
 type Server struct {
@@ -106,7 +105,7 @@ func (r *relay) copyIo(conn net.Conn, w io.Writer, reader io.Reader) {
 
 func main() {
 	flag.Parse()
-	s := &Server{addr: fmt.Sprintf("%s:%d", *host, *port)}
+	s := &Server{addr: *addr}
 	if err := s.Serve(); err != nil {
 		panic(err)
 	}

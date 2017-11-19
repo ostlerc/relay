@@ -34,6 +34,7 @@ func main() {
 	for {
 		dat, err := r.ReadBytes('\n')
 		clientAddr := string(dat[:len(dat)-1])
+		fmt.Println("new client", clientAddr)
 
 		client, err := net.Dial("tcp", clientAddr)
 		if err != nil {
